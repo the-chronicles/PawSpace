@@ -1,74 +1,243 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  TextInput,
+  ActivityIndicator,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { Search, Filter } from "lucide-react-native";
+import { getListings } from "@/services/listingService";
+import { ListingItem } from "@/types";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function MarketplaceScreen() {
+  const [listings, setListings] = useState<ListingItem[]>([]);
+  const [filteredListings, setFilteredListings] = useState<ListingItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-export default function HomeScreen() {
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getListings();
+        setListings(data);
+        setFilteredListings(data);
+      } catch (err) {
+        setError("Failed to load listings. Please try again.");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchListings();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredListings(listings);
+    } else {
+      const filtered = listings.filter(
+        (item) =>
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredListings(filtered);
+    }
+  }, [searchQuery, listings]);
+
+  const handleListingPress = (id: string) => {
+    router.push({
+      pathname: "/listing",
+      // pathname: '/(tabs)/listing',
+      params: { id },
+    });
+  };
+
+  const renderListingItem = ({ item }: { item: ListingItem }) => (
+    <TouchableOpacity
+      style={styles.listingCard}
+      onPress={() => handleListingPress(item.id)}
+    >
+      <Image
+        source={{ uri: item.imageUrl }}
+        style={styles.listingImage}
+        resizeMode="cover"
+      />
+      <View style={styles.listingInfo}>
+        <Text style={styles.listingTitle}>{item.title}</Text>
+        <Text style={styles.listingPrice}>${item.price.toFixed(2)}</Text>
+        <Text style={styles.listingDescription} numberOfLines={2}>
+          {item.description}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <View style={styles.container}>
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Search size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search pet items..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        <TouchableOpacity style={styles.filterButton}>
+          <Filter size={20} color="#5FD4C3" />
+        </TouchableOpacity>
+      </View>
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#5FD4C3" />
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : filteredListings.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No listings found</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredListings}
+          renderItem={renderListingItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listingsContainer}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#FFF",
   },
-  stepContainer: {
-    gap: 8,
+  searchContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginRight: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontFamily: "Inter-Regular",
+    fontSize: 16,
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  listingsContainer: {
+    padding: 16,
+  },
+  listingCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: "hidden",
+  },
+  listingImage: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#F0F0F0",
+  },
+  listingInfo: {
+    padding: 16,
+  },
+  listingTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  listingPrice: {
+    fontFamily: "Inter-Bold",
+    fontSize: 16,
+    color: "#5FD4C3",
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  listingDescription: {
+    fontFamily: "Inter-Regular",
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  errorText: {
+    fontFamily: "Inter-Medium",
+    fontSize: 16,
+    color: "#FF3B30",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: "#5FD4C3",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontFamily: "Inter-Bold",
+    color: "#FFF",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyText: {
+    fontFamily: "Inter-Medium",
+    fontSize: 16,
+    color: "#666",
   },
 });
