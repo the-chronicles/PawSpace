@@ -21,7 +21,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const stripe = require('stripe')('YOUR_STRIPE_SECRET_KEY');
+const stripe = require('stripe')('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');
 
 admin.initializeApp();
 
@@ -42,8 +42,8 @@ exports.createStripeOnboardingLink = functions.https.onCall(async (data: any, co
 
   const accountLink = await stripe.accountLinks.create({
     account: userData.stripeAccountId,
-    refresh_url: 'https://yourapp.com/profile', // Replace with your actual site
-    return_url: 'https://yourapp.com/profile',
+    refresh_url: 'exp://192.168.104.206:8081/--/profile', // Replace with your actual site
+    return_url: 'exp://192.168.104.206:8081/--/profile',
     type: 'account_onboarding',
   });
 

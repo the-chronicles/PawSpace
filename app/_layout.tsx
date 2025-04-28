@@ -66,6 +66,8 @@ export default function RootLayout() {
         <Stack.Screen name="listing" />
         <Stack.Screen name="forum-post" />
         <Stack.Screen name="onboard-seller" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="favorite" />
       </Stack>
       <StatusBar
         animated={true}

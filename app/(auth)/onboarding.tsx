@@ -9,7 +9,7 @@ interface Slide {
   title: string;
   description: string;
   icon: JSX.Element;
-  image: string;
+  image: string | JSX.Element;
 }
 
 const slides: Slide[] = [
@@ -17,8 +17,8 @@ const slides: Slide[] = [
     id: '1',
     title: 'Welcome to PawSpace',
     description: 'Your one-stop marketplace for pre-loved pet items. Give your furry friends the best without breaking the bank.',
-    icon: <PawPrint size={48} color="#5FD4C3" />,
-    image: 'https://images.pexels.com/photos/1404819/pexels-photo-1404819.jpeg'
+    icon: <Image source={require('@/assets/images/pawv2.png')} style={{ width:40, height:40, resizeMode:"center" }} />,
+    image: 'https://images.pexels.com/photos/1404819/pexels-photo-1404819.jpeg',
   },
   {
     id: '2',
@@ -45,11 +45,15 @@ export default function OnboardingScreen() {
   const renderSlide = ({ item }: { item: Slide }) => (
     <View style={[styles.slide, { width: screenWidth }]}>
       <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: item.image }}
-          style={styles.image}
-          resizeMode="cover"
-        />
+        {typeof item.image === 'string' ? (
+          <Image
+            source={{ uri: item.image }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          item.image
+        )}
         <View style={styles.overlay} />
         <View style={styles.iconContainer}>
           {item.icon}

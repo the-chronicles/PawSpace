@@ -19,6 +19,7 @@ export interface ListingItem {
   sellerId: string;
   sellerName: string;
   createdAt: number;
+  isSold?: boolean;
 }
 
 // Forum types

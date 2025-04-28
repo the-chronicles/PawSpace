@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Share } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Heart, Share2, ArrowLeft, MessageCircle } from 'lucide-react-native';
-import { getListingById } from '@/services/listingService';
 import { ListingItem } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
+import { getListingById, markListingAsSold } from '@/services/listingService';
+import { addToFavorites, removeFromFavorites, isFavorite } from '@/services/favoriteService';
+
+
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +25,12 @@ export default function ListingDetailScreen() {
         setIsLoading(true);
         const data = await getListingById(id);
         setListing(data);
+
+        if (user && data) {
+          const favorited = await isFavorite(user.uid, data.id);
+          setIsFavorite(favorited);
+        }
+        
       } catch (error) {
         console.error('Error fetching listing:', error);
         Alert.alert('Error', 'Failed to load listing details.');
@@ -43,20 +52,50 @@ export default function ListingDetailScreen() {
     Alert.alert('Contact Seller', 'This feature will be implemented soon!');
   };
 
-  const handlePurchase = () => {
+  const handlePurchase = async () => {
     if (!user) {
       Alert.alert('Authentication Required', 'Please log in to purchase this item.');
       return;
     }
-    
-    // In a real app, this would initiate Stripe payment flow
-    Alert.alert('Purchase', 'This would open the Stripe payment flow.');
+  
+    if (listing?.isSold) {
+      Alert.alert('Sold', 'This item has already been sold.');
+      return;
+    }
+  
+    try {
+      if (listing) {
+        await markListingAsSold(listing.id);
+      }
+      Alert.alert('Success', 'Item marked as sold.');
+      router.back();
+    } catch (error) {
+      console.error('Error marking as sold:', error);
+      Alert.alert('Error', 'Failed to complete purchase.');
+    }
   };
+  
 
-  const toggleFavorite = () => {
-    setIsFavorite(!isFavorite);
-    // In a real app, this would save to Firebase
+  const toggleFavorite = async () => {
+    if (!user || !listing) {
+      Alert.alert('Authentication Required', 'Please log in to favorite an item.');
+      return;
+    }
+  
+    try {
+      if (isFavorite) {
+        await removeFromFavorites(user.uid, listing.id);
+        setIsFavorite(false);
+      } else {
+        await addToFavorites(user.uid, listing.id);
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error('Error updating favorite:', error);
+      Alert.alert('Error', 'Could not update favorites. Please try again.');
+    }
   };
+  
 
   const handleShare = async () => {
     if (!listing) return;
@@ -101,6 +140,7 @@ export default function ListingDetailScreen() {
             style={styles.image}
             resizeMode="cover"
           />
+          
           <TouchableOpacity 
             style={styles.backButtonOverlay}
             onPress={() => router.back()}

@@ -1,17 +1,28 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, Alert, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import { Camera, X } from 'lucide-react-native';
-import { createListing } from '@/services/listingService';
-import { useAuth } from '@/hooks/useAuth';
+import { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  Alert,
+  Platform,
+} from "react-native";
+import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { Camera, X } from "lucide-react-native";
+import { createListing, uploadListingImage } from '@/services/listingService';
+import { useAuth } from "@/hooks/useAuth";
 
 export default function CreateListingScreen() {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState('');
-  const [condition, setCondition] = useState('');
-  const [category, setCategory] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [condition, setCondition] = useState("");
+  const [category, setCategory] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
@@ -19,9 +30,12 @@ export default function CreateListingScreen() {
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please grant camera roll permissions to upload an image.');
+
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Please grant camera roll permissions to upload an image."
+      );
       return;
     }
 
@@ -39,61 +53,76 @@ export default function CreateListingScreen() {
 
   const handleSubmit = async () => {
     if (!title || !description || !price || !condition || !category || !image) {
-      Alert.alert('Missing Fields', 'Please fill in all fields and add an image.');
+      Alert.alert(
+        "Missing Fields",
+        "Please fill in all fields and add an image."
+      );
       return;
     }
 
     if (!user) {
-      Alert.alert('Authentication Error', 'You must be logged in to create a listing.');
+      Alert.alert(
+        "Authentication Error",
+        "You must be logged in to create a listing."
+      );
       return;
     }
 
     try {
       setIsLoading(true);
-      
-      // Create listing in Firebase
+
+      // 🔥 1. Upload image to Firebase Storage
+      const imageUrl = await uploadListingImage(user.uid, image);
+
+      // 🔥 2. Create listing in Firestore with uploaded image URL
       await createListing({
         title,
         description,
         price: parseFloat(price),
         condition,
         category,
-        imageUrl: image, // In a real app, you'd upload this to Firebase Storage first
+        imageUrl: imageUrl, // ✅ Real download URL
         sellerId: user.uid,
-        sellerName: user.displayName || 'Unknown User',
+        sellerName: user.displayName || "Unknown User",
       });
 
-      Alert.alert(
-        'Success!',
-        'Your listing has been created successfully.',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => router.push('/(tabs)') 
-          }
-        ]
-      );
+      Alert.alert("Success!", "Your listing has been created successfully.", [
+        {
+          text: "OK",
+          onPress: () => router.push("/(tabs)"),
+        },
+      ]);
     } catch (error) {
-      console.error('Error creating listing:', error);
-      Alert.alert('Error', 'There was a problem creating your listing. Please try again.');
+      console.error("Error creating listing:", error);
+      Alert.alert(
+        "Error",
+        "There was a problem creating your listing. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const conditionOptions = ['New', 'Like New', 'Good', 'Fair', 'Poor'];
-  const categoryOptions = ['Toys', 'Food', 'Beds', 'Clothes', 'Accessories', 'Other'];
+  const conditionOptions = ["New", "Like New", "Good", "Fair", "Poor"];
+  const categoryOptions = [
+    "Toys",
+    "Food",
+    "Beds",
+    "Clothes",
+    "Accessories",
+    "Other",
+  ];
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Listing Details</Text>
-        
+
         <View style={styles.imagePickerContainer}>
           {image ? (
             <View style={styles.imagePreviewContainer}>
               <Image source={{ uri: image }} style={styles.imagePreview} />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.removeImageButton}
                 onPress={() => setImage(null)}
               >
@@ -101,7 +130,7 @@ export default function CreateListingScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.imagePickerButton}
               onPress={pickImage}
             >
@@ -110,7 +139,7 @@ export default function CreateListingScreen() {
             </TouchableOpacity>
           )}
         </View>
-        
+
         <Text style={styles.label}>Title</Text>
         <TextInput
           style={styles.input}
@@ -119,7 +148,7 @@ export default function CreateListingScreen() {
           onChangeText={setTitle}
           maxLength={50}
         />
-        
+
         <Text style={styles.label}>Description</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
@@ -127,16 +156,16 @@ export default function CreateListingScreen() {
           value={description}
           onChangeText={setDescription}
           multiline
-          numberOfLines={Platform.OS === 'ios' ? 0 : 4}
+          numberOfLines={Platform.OS === "ios" ? 0 : 4}
           maxLength={500}
         />
-        
+
         <Text style={styles.label}>Price ($)</Text>
         <TextInput
           style={styles.input}
           placeholder="0.00"
           value={price}
-          onChangeText={text => setPrice(text.replace(/[^0-9.]/g, ''))}
+          onChangeText={(text) => setPrice(text.replace(/[^0-9.]/g, ""))}
           keyboardType="decimal-pad"
         />
 
@@ -147,20 +176,22 @@ export default function CreateListingScreen() {
               key={option}
               style={[
                 styles.optionButton,
-                condition === option && styles.selectedOption
+                condition === option && styles.selectedOption,
               ]}
               onPress={() => setCondition(option)}
             >
-              <Text style={[
-                styles.optionText,
-                condition === option && styles.selectedOptionText
-              ]}>
+              <Text
+                style={[
+                  styles.optionText,
+                  condition === option && styles.selectedOptionText,
+                ]}
+              >
                 {option}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        
+
         <Text style={styles.label}>Category</Text>
         <View style={styles.optionsContainer}>
           {categoryOptions.map((option) => (
@@ -168,20 +199,22 @@ export default function CreateListingScreen() {
               key={option}
               style={[
                 styles.optionButton,
-                category === option && styles.selectedOption
+                category === option && styles.selectedOption,
               ]}
               onPress={() => setCategory(option)}
             >
-              <Text style={[
-                styles.optionText,
-                category === option && styles.selectedOptionText
-              ]}>
+              <Text
+                style={[
+                  styles.optionText,
+                  category === option && styles.selectedOptionText,
+                ]}
+              >
                 {option}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        
+
         <TouchableOpacity
           style={styles.submitButton}
           onPress={handleSubmit}
@@ -193,9 +226,10 @@ export default function CreateListingScreen() {
             <Text style={styles.submitButtonText}>List Item for Sale</Text>
           )}
         </TouchableOpacity>
-        
+
         <Text style={styles.disclaimer}>
-          By listing this item, you agree to PawSpace's terms and conditions, including the 10% platform fee on successful sales.
+          By listing this item, you agree to PawSpace's terms and conditions,
+          including the 10% platform fee on successful sales.
         </Text>
       </View>
     </ScrollView>
@@ -205,85 +239,85 @@ export default function CreateListingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
   },
   formContainer: {
     paddingHorizontal: 16,
     paddingVertical: 30,
   },
   sectionTitle: {
-    fontFamily: 'Inter-Bold',
+    fontFamily: "Inter-Bold",
     fontSize: 20,
     marginBottom: 16,
   },
   imagePickerContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   imagePickerButton: {
-    width: '100%',
+    width: "100%",
     height: 200,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#E0E0E0",
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
   },
   imagePickerText: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: "Inter-Medium",
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginTop: 8,
   },
   imagePreviewContainer: {
-    position: 'relative',
-    width: '100%',
+    position: "relative",
+    width: "100%",
     height: 200,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   imagePreview: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   removeImageButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     borderRadius: 16,
     width: 32,
     height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   label: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: "Inter-Medium",
     fontSize: 16,
     marginBottom: 8,
-    color: '#333',
+    color: "#333",
   },
   input: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     borderRadius: 8,
     padding: 16,
     marginBottom: 16,
-    fontFamily: 'Inter-Regular',
+    fontFamily: "Inter-Regular",
     fontSize: 16,
   },
   textArea: {
     minHeight: 120,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   optionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginBottom: 16,
   },
   optionButton: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -291,33 +325,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   selectedOption: {
-    backgroundColor: '#5FD4C3',
+    backgroundColor: "#5FD4C3",
   },
   optionText: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: "Inter-Medium",
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   selectedOptionText: {
-    color: '#FFF',
+    color: "#FFF",
   },
   submitButton: {
-    backgroundColor: '#5FD4C3',
+    backgroundColor: "#5FD4C3",
     borderRadius: 8,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 16,
   },
   submitButtonText: {
-    fontFamily: 'Inter-Bold',
-    color: 'white',
+    fontFamily: "Inter-Bold",
+    color: "white",
     fontSize: 16,
   },
   disclaimer: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: "Inter-Regular",
     fontSize: 12,
-    color: '#888',
-    textAlign: 'center',
+    color: "#888",
+    textAlign: "center",
     marginTop: 16,
   },
 });
