@@ -21,7 +21,8 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const stripe = require('stripe')('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');
+const stripe = require('stripe')(process.env.STRIPE_API_KEY);
+
 
 admin.initializeApp();
 
