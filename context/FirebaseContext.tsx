@@ -1,5 +1,7 @@
 import { createContext, useState, useEffect, ReactNode } from 'react';
-import { initializeFirebase } from '@/firebase/config';
+import { getFirebaseApp } from '@/firebase/config';
+import { getUserProfile } from '@/services/userService';
+
 import { getAuth, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 type FirebaseContextType = {
@@ -26,22 +28,31 @@ export function FirebaseProvider({ children }: FirebaseProviderProps) {
   useEffect(() => {
     const initFirebase = async () => {
       try {
-        // Initialize Firebase
-        const app = initializeFirebase();
+        const app = getFirebaseApp();
         const auth = getAuth(app);
-        
-        // Listen for auth state changes
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
           setUser(firebaseUser);
           setIsAuthReady(true);
+
+          if (firebaseUser) {
+            try {
+              // ✅ Ensure Firestore user profile exists
+              await getUserProfile(firebaseUser.uid, {
+                displayName: firebaseUser.displayName,
+                email: firebaseUser.email,
+                photoURL: firebaseUser.photoURL,
+              });
+              console.log('Ensured Firestore user profile exists');
+            } catch (err) {
+              console.error('Error initializing user profile:', err);
+            }
+          }
         });
 
         setIsInitialized(true);
 
-        // Cleanup function
-        return () => {
-          unsubscribe();
-        };
+        return () => unsubscribe();
       } catch (error) {
         console.error('Error initializing Firebase:', error);
         setIsInitialized(true);

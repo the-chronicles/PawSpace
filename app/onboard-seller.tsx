@@ -2,23 +2,25 @@ import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, View, StyleSheet, Alert } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
-import { functions } from '@/firebase';
+import { getFirebaseFunctions } from '@/firebase/config';
 import { httpsCallable } from 'firebase/functions';
 
+
 export default function OnboardSellerScreen() {
-  const { user } = useAuth();
+  const { user, isAuthReady } = useAuth(); 
   const router = useRouter();
 
   useEffect(() => {
     const startOnboarding = async () => {
-      if (!user) return;
-
+      if (!user || !isAuthReady) return;
+  
       try {
+        const functions = getFirebaseFunctions();
         const createOnboardingLink = httpsCallable(functions, 'createStripeOnboardingLink');
         const response = await createOnboardingLink({ uid: user.uid });
-
+  
         if (response.data?.url) {
-          router.push(response.data.url); // redirect to Stripe onboarding URL
+          router.push(response.data.url);
         } else {
           throw new Error('Onboarding URL missing');
         }
@@ -28,9 +30,10 @@ export default function OnboardSellerScreen() {
         router.back();
       }
     };
-
+  
     startOnboarding();
-  }, [user]);
+  }, [user, isAuthReady]);
+  
 
   return (
     <View style={styles.container}>
@@ -46,3 +49,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+
+
+

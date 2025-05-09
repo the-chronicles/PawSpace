@@ -1,82 +1,104 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-// import {onRequest} from "firebase-functions/v2/https";
-// import * as logger from "firebase-functions/logger";
-// import { getFirebaseFunctions } from './config';
-
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
-
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const stripe = require('stripe')(process.env.STRIPE_API_KEY);
-
+import * as functions from 'firebase-functions';
+import { onCall, CallableRequest, HttpsError } from 'firebase-functions/v2/https';
+import { setGlobalOptions } from 'firebase-functions/v2';
+import * as admin from 'firebase-admin';
+import Stripe from 'stripe';
+import express from 'express';
+import * as bodyParser from 'body-parser';
 
 admin.initializeApp();
+setGlobalOptions({ region: 'us-central1', maxInstances: 1 });
 
-exports.createStripeOnboardingLink = functions.https.onCall(async (data: any, context: any) => {
-  const { uid } = data;
+const stripeSecret = process.env.STRIPE_SECRET || functions.config().stripe?.secret;
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || functions.config().stripe?.webhook_secret;
 
-  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'Missing UID.');
+if (!stripeSecret || !webhookSecret) {
+  throw new Error('Missing Stripe config: stripe.secret or stripe.webhook_secret not set');
+}
 
-  const userDoc = await admin.firestore().collection('users').doc(uid).get();
-  const userData = userDoc.data();
-
-  if (!userData) throw new functions.https.HttpsError('not-found', 'User not found.');
-
-  if (!userData.stripeAccountId) {
-    const account = await stripe.accounts.create({ type: 'express', email: userData.email });
-    await admin.firestore().collection('users').doc(uid).update({ stripeAccountId: account.id });
-  }
-
-  const accountLink = await stripe.accountLinks.create({
-    account: userData.stripeAccountId,
-    refresh_url: 'exp://192.168.104.206:8081/--/profile', // Replace with your actual site
-    return_url: 'exp://192.168.104.206:8081/--/profile',
-    type: 'account_onboarding',
-  });
-
-  return { url: accountLink.url };
+const stripe = new Stripe(stripeSecret, {
+  apiVersion: '2025-04-30.basil',
 });
 
-exports.handleStripeWebhook = functions.https.onRequest(async (req: any, res: any) => {
-  const sig = req.headers['stripe-signature'];
+
+
+// === Stripe Onboarding (Callable Function) ===
+export const createStripeOnboardingLink = onCall(
+  async (request: CallableRequest): Promise<{ url: string }> => {
+    console.log('Auth info:', request.auth);
+
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Authentication required.');
+    }
+
+    const userRef = admin.firestore().collection('users').doc(uid);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      throw new HttpsError('not-found', 'User not found in Firestore.');
+    }
+
+    const userData = userDoc.data()!;
+
+    if (!userData.stripeAccountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: userData.email,
+      });
+
+      await userRef.update({ stripeAccountId: account.id });
+      userData.stripeAccountId = account.id;
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: userData.stripeAccountId,
+      refresh_url: 'exp://192.168.104.206:8081/--/profile',
+      return_url: 'exp://192.168.104.206:8081/--/profile',
+      type: 'account_onboarding',
+    });
+
+    return { url: accountLink.url };
+  }
+);
+
+// === Stripe Webhook (Express App Setup) ===
+const app = express();
+
+// Middleware to handle raw body for webhooks
+app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'] as string;
 
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.rawBody, sig, 'YOUR_WEBHOOK_SIGNING_SECRET'); 
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('❌ Stripe webhook signature verification failed:', err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+    return;
   }
 
   if (event.type === 'account.updated') {
-    const account = event.data.object;
+    const account = event.data.object as Stripe.Account;
 
     if (account.charges_enabled) {
       const usersRef = admin.firestore().collection('users');
-      const querySnapshot = await usersRef.where('stripeAccountId', '==', account.id).limit(1).get();
+      const snapshot = await usersRef
+        .where('stripeAccountId', '==', account.id)
+        .limit(1)
+        .get();
 
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
+      if (!snapshot.empty) {
+        const userDoc = snapshot.docs[0];
         await userDoc.ref.update({ isSeller: true });
-        console.log(`User ${userDoc.id} is now a seller.`);
+        console.log(`✅ User ${userDoc.id} is now a seller.`);
       }
     }
   }
 
-  res.status(200).send('Received');
+  res.status(200).send('✅ Webhook received');
 });
+
+// Export the Express app as a Firebase Function
+export const handleStripeWebhook = functions.https.onRequest(app);

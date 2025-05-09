@@ -7,10 +7,11 @@ import {
   signOut as firebaseSignOut,
   updateProfile
 } from 'firebase/auth';
-import { getFirebaseApp } from '@/firebase/config';
+import { getFirebaseApp, getFirebaseAuth } from '@/firebase/config';
 import { getUserProfile } from '@/services/userService';
 
 export function useAuth() {
+  const auth = getFirebaseAuth();
   const { user, isAuthReady } = useContext(FirebaseContext);
   const [isLoading, setIsLoading] = useState(false);
 
